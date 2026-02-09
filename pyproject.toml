@@ -1,0 +1,30 @@
+[project]
+name = "toxicitydetection"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "datasets>=4.5.0",
+    "jupyterlab>=4.5.3",
+    "numpy>=2.4.2",
+    "pandas>=3.0.0",
+    "pyreadr>=0.5.4",
+    "torch>=2.10.0",
+    "torchvision>=0.25.0",
+    "transformers>=5.1.0",
+]
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cpu" },
+]
+torchvision = [
+  { index = "pytorch-cpu" },
+]
+
+[[tool.uv.index]]
+url = "file:///home/thang/MasterDegree/Aalto/Study/NaturalLanguageProcessing/Project/ToxicityDetection/pytorch-cpu"
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
