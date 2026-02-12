@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.autograd import Function
-from transformers import AutoModel, AutoTokenizer
+from transformers import AutoModel
 
 
 class GradientReversalFunction(Function):
@@ -100,14 +100,8 @@ class CrossLingualToxicityDetector(nn.Module):
             return_dict=True
         )
         
-        # Last non padded token
-        last_token_indices = attention_mask.sum(dim=1) - 1
-        batch_size = input_ids.shape[0]
-        
-        pooled_output = outputs.last_hidden_state[
-            torch.arange(batch_size, device=input_ids.device),
-            last_token_indices
-        ]
+        # Last token hidden state        
+        pooled_output = outputs.last_hidden_state[:, -1, :]
         
         toxicity_logits = self.toxicity_head(pooled_output)
         reversed_features = self.grl(pooled_output)
