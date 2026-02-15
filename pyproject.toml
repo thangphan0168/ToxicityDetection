@@ -18,6 +18,14 @@ dependencies = [
     "torchvision>=0.25.0",
     "transformers>=5.1.0",
 ]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/toxicity_detection"]
+
 [tool.uv.sources]
 torch = [
   { index = "pytorch-cpu" },
