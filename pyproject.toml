@@ -27,8 +27,6 @@ torchvision = [
 ]
 
 [[tool.uv.index]]
-url = "file:///home/thang/MasterDegree/Aalto/Study/NaturalLanguageProcessing/Project/ToxicityDetection/pytorch-cpu"
-[[tool.uv.index]]
 name = "pytorch-cpu"
 url = "https://download.pytorch.org/whl/cpu"
 explicit = true
