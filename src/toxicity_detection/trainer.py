@@ -103,7 +103,8 @@ class Trainer:
         toxicity_criterion: nn.Module | None = None,
         language_criterion: nn.Module | None = None,
         toxicity_weight: float = 1.0,
-        language_weight: float = 1.0
+        language_weight: float = 1.0,
+        resume_checkpoint: bool = False
     ):
         self.model_name = model_name
         self.languages = languages
@@ -125,6 +126,46 @@ class Trainer:
         self.language_criterion = language_criterion or nn.CrossEntropyLoss()
         self.toxicity_weight = toxicity_weight
         self.language_weight = language_weight
+        self.resume_checkpoint = resume_checkpoint
+
+    def _load_latest_checkpoint(
+        self,
+        model: torch.nn.Module,
+        optimizer: torch.optim.Optimizer,
+        scheduler: torch.optim.lr_scheduler.LRScheduler,
+    ) -> tuple[int, int]:
+        """
+        Load the latest checkpoint (by step) if available.
+        Returns:
+            (start_epoch, start_step) where:
+                start_epoch: epoch index to start from
+                start_step: global step count to resume from
+        """
+        pattern = os.path.join(self.save_path, "checkpoint_step_*.pth")
+        checkpoint_files = glob.glob(pattern)
+        if not checkpoint_files:
+            return 0, 0  # no checkpoint, start from scratch
+
+        # Sort by step number
+        checkpoint_files.sort(key=lambda x: int(x.split('_')[-1].split('.')[0]))
+        latest_checkpoint = checkpoint_files[-1]
+        print(f"Resuming from checkpoint: {latest_checkpoint}")
+
+        checkpoint = torch.load(latest_checkpoint, map_location=self.device)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+
+        # Restore epoch and step
+        start_epoch = checkpoint.get('epoch', 0)
+        start_step = checkpoint.get('step', 0)
+
+        # If validation metrics were stored, update best_val_f1
+        val_metrics = checkpoint.get('val_metrics')
+        if val_metrics is not None and 'toxicity_macro_f1' in val_metrics:
+            self.best_val_f1 = val_metrics['toxicity_macro_f1']
+
+        return start_epoch, start_step
 
     def compute_loss(self, outputs, toxicity_labels, language_labels):
         """
@@ -266,9 +307,15 @@ class Trainer:
             num_warmup_steps=self.warmup_steps,
             num_training_steps=total_steps
         )
+
+        start_epoch = 0
+        self.step_count = 0
+        if self.resume_checkpoint:
+            start_epoch, self.step_count = self._load_latest_checkpoint(model, optimizer, scheduler)
+            start_epoch = min(start_epoch, self.num_epochs - 1)
         
         model.train()
-        for epoch in range(self.num_epochs):
+        for epoch in range(start_epoch, self.num_epochs):
             print(f"\n{'='*50}")
             print(f"Epoch {epoch+1}/{self.num_epochs}")
             print(f"{'='*50}")
