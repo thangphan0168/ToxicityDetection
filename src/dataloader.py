@@ -6,10 +6,10 @@ class ToxicityDataset(Dataset):
     """
     Dataset for toxicity detection with language labels.
     """
-    def __init__(self, hf_dataset, tokenizer):
+    def __init__(self, hf_dataset, tokenizer, languages):
         self.dataset = hf_dataset
         self.tokenizer = tokenizer
-        self.language_labels = {lang: idx for idx, lang in enumerate(['en', 'fi', 'de'])}
+        self.language_labels = {lang: idx for idx, lang in enumerate(languages)}
     
     def __len__(self):
         return len(self.dataset)
@@ -21,8 +21,7 @@ class ToxicityDataset(Dataset):
         
         tokenized = self.tokenizer(
             text,
-            truncation=True,
-            max_length=1024
+            truncation=False
         )
         
         return {
@@ -52,7 +51,7 @@ if __name__ == "__main__":
 
     tokenizer = AutoTokenizer.from_pretrained("google/gemma-3-270m")
     train_dataset = load_dataset("parquet", data_files="data/train_combined.parquet", split="train")
-    toxic_dataset = ToxicityDataset(train_dataset, tokenizer)
+    toxic_dataset = ToxicityDataset(train_dataset, tokenizer, languages=['en', 'fi', 'de'])
     collator = ToxicityDataCollator(tokenizer)
     train_dataloader = DataLoader(
         toxic_dataset,
