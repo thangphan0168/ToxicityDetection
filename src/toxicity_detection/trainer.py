@@ -407,13 +407,42 @@ class Trainer:
 
 
 if __name__ == "__main__":
-    from datasets import load_dataset
+    from datasets import load_dataset, concatenate_datasets
 
     train_dataset = load_dataset("parquet", data_files="data/train_combined.parquet", split="train")
     dev_dataset = load_dataset("parquet", data_files="data/dev.parquet", split="train")
-    n_samples = 10
-    train_samples = train_dataset.shuffle(seed=0).select(range(n_samples))
-    dev_samples = dev_dataset.shuffle(seed=0).select(range(4))
+    languages = ["en", "fi", "de"]
+    n_train_samples = 10
+    n_dev_samples = 4
+
+    def stratified_sample_equal_per_lang(dataset, languages, total_samples, seed=0):
+        """Sample equally from each language in `languages`."""
+        num_langs = len(languages)
+        base_n = total_samples // num_langs
+        remainder = total_samples % num_langs
+        per_lang_counts = {lang: base_n for lang in languages}
+        for lang in languages[:remainder]:
+            per_lang_counts[lang] += 1
+
+        per_lang_datasets = []
+        for lang in languages:
+            lang_subset = dataset.filter(lambda ex, l=lang: ex["lang"] == l)
+            lang_subset = lang_subset.shuffle(seed=seed)
+            n = per_lang_counts[lang]
+            if n > len(lang_subset):
+                raise ValueError(f"Requested {n} samples for language '{lang}', "
+                                f"but only {len(lang_subset)} available.")
+            per_lang_datasets.append(lang_subset.select(range(n)))
+
+        combined = concatenate_datasets(per_lang_datasets).shuffle(seed=seed)
+        return combined
+    
+    train_samples = stratified_sample_equal_per_lang(
+        train_dataset, languages, total_samples=n_train_samples, seed=0
+    )
+    dev_samples = stratified_sample_equal_per_lang(
+        dev_dataset, languages, total_samples=n_dev_samples, seed=1
+    )
     
     trainer = Trainer(
         model_name="google/gemma-3-270m",
