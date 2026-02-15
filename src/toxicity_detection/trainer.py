@@ -385,7 +385,7 @@ class Trainer:
         for lang in self.languages:
             if len(all_toxicity_labels[lang]) > 0:
                 tox_precision, tox_recall, tox_f1, _ = precision_recall_fscore_support(
-                    all_toxicity_labels[lang], all_toxicity_preds[lang], average='binary'
+                    all_toxicity_labels[lang], all_toxicity_preds[lang], average='binary', zero_division=0
                 )
                 metrics["toxicity_precision"][lang] = tox_precision
                 metrics["toxicity_recall"][lang] = tox_recall
