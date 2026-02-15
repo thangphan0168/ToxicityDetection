@@ -12,8 +12,8 @@ from transformers import AutoTokenizer, get_linear_schedule_with_warmup
 from tqdm import tqdm
 
 from sklearn.metrics import precision_recall_fscore_support
-from src.model import CrossLingualToxicityDetector
-from src.dataloader import ToxicityDataset, ToxicityDataCollator
+from toxicity_detection.model import CrossLingualToxicityDetector
+from toxicity_detection.dataloader import ToxicityDataset, ToxicityDataCollator
 
 
 class CheckpointManager:
