@@ -93,6 +93,7 @@ class Trainer:
         languages: list[str],
         batch_size: int,
         learning_rate: float,
+        grl_lambda: float = 1.0,
         warmup_steps: int = 0,
         accumulation_steps: int = 1,
         eval_steps: int | None = None,
@@ -113,6 +114,7 @@ class Trainer:
         self.val_dataset = val_dataset
         self.batch_size = batch_size
         self.learning_rate = learning_rate
+        self.grl_lambda = grl_lambda
         self.warmup_steps = warmup_steps
         self.accumulation_steps = accumulation_steps
         self.eval_steps = eval_steps
@@ -283,7 +285,7 @@ class Trainer:
         model = CrossLingualToxicityDetector.from_pretrained_base(
             model_name=self.model_name,
             num_languages=self.num_languages,
-            grl_lambda=1.0
+            grl_lambda=self.grl_lambda
         ).to(self.device)
         
         train_dataset = ToxicityDataset(self.train_dataset, tokenizer, self.languages)
