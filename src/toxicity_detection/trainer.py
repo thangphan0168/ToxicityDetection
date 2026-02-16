@@ -337,7 +337,10 @@ class Trainer:
         print(f"  Loss: {val_metrics['loss']:.4f}")
         print(f"  Toxicity Loss: {val_metrics['toxicity_loss']:.4f}")
         print(f"  Language Loss: {val_metrics['language_loss']:.4f}")
-        print(f"  Toxicity Macro F1: {val_metrics['toxicity_macro_f1']:.4f}")
+        print(f"  Toxicity F1:")
+        for lang in self.languages:
+            print(f"  - {lang}: {val_metrics['toxicity_f1'][lang]}")
+        print(f"  - Avg: {val_metrics['toxicity_macro_f1']:.4f}")
         print(f"  Labeled Samples: {val_metrics['num_labeled_samples']}")
         print(f"\n{'='*50}")
         print(f"Training completed!")
