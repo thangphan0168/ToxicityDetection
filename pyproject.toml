@@ -5,18 +5,29 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "datasets>=4.5.0",
+    "pyarrow==18.1.0",
+    "datasets==4.0.0",
     "jupyterlab>=4.5.3",
     "lxml>=6.0.2",
-    "matplotlib>=3.10.8",
-    "numpy>=2.4.2",
-    "pandas>=3.0.0",
+    "matplotlib==3.10.0",
+    "numpy==2.0.2",
+    "pandas==2.2.2",
     "pyreadr>=0.5.4",
     "rasterio>=1.5.0",
-    "scikit-learn>=1.8.0",
-    "torch>=2.10.0",
-    "torchvision>=0.25.0",
-    "transformers>=5.1.0",
+    "scikit-learn==1.6.1",
+    "transformers==5.0.0",
+]
+
+[project.optional-dependencies]
+cpu = ["torch==2.9.0"]
+cu128 = ["torch==2.9.0"]
+
+[tool.uv]
+conflicts = [
+  [
+    { extra = "cpu" },
+    { extra = "cu128" },
+  ],
 ]
 
 [build-system]
@@ -28,13 +39,16 @@ packages = ["src/toxicity_detection"]
 
 [tool.uv.sources]
 torch = [
-  { index = "pytorch-cpu" },
-]
-torchvision = [
-  { index = "pytorch-cpu" },
+  { index = "pytorch-cpu", extra = "cpu" },
+  { index = "pytorch-cu128", extra = "cu128" },
 ]
 
 [[tool.uv.index]]
 name = "pytorch-cpu"
 url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
 explicit = true
