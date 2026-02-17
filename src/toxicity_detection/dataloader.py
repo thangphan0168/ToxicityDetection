@@ -6,9 +6,10 @@ class ToxicityDataset(Dataset):
     """
     Dataset for toxicity detection with language labels.
     """
-    def __init__(self, hf_dataset, tokenizer, languages):
+    def __init__(self, hf_dataset, tokenizer, languages, max_length=1024):
         self.dataset = hf_dataset
         self.tokenizer = tokenizer
+        self.max_length = max_length
         self.language_labels = {lang: idx for idx, lang in enumerate(languages)}
     
     def __len__(self):
@@ -21,7 +22,8 @@ class ToxicityDataset(Dataset):
         
         tokenized = self.tokenizer(
             text,
-            truncation=False
+            truncation=True,
+            max_length=self.max_length
         )
         
         return {
