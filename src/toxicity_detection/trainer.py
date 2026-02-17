@@ -7,11 +7,11 @@ import datasets
 import numpy as np
 import torch
 import torch.nn as nn
+from sklearn.metrics import precision_recall_fscore_support
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, get_linear_schedule_with_warmup
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
-from sklearn.metrics import precision_recall_fscore_support
 from toxicity_detection.model import CrossLingualToxicityDetector
 from toxicity_detection.dataloader import ToxicityDataset, ToxicityDataCollator
 
