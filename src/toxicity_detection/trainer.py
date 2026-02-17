@@ -250,9 +250,11 @@ class Trainer:
                 if (self.eval_steps is not None and self.step_count % self.eval_steps == 0) or is_last_batch:
                     current_f1 = None
                     val_metrics = None
+                    print("Cummulative Average Training Toxicity Loss: ", total_toxicity_loss / (batch_idx+1))
                     if val_dataloader is not None:
                         val_metrics = self.evaluate(model, val_dataloader)
                         current_f1 = val_metrics['toxicity_macro_f1']
+                        print(f"Validation - Toxicity Loss: {val_metrics['toxicity_loss']}")
                         print(f"Validation - Macro F1: {current_f1:.4f}")
                         if current_f1 > self.best_val_f1:
                             checkpoint_manager.save_best_model(
