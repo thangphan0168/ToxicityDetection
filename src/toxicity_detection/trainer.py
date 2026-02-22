@@ -94,6 +94,7 @@ class Trainer:
         batch_size: int,
         learning_rate: float,
         grl_lambda: float = 1.0,
+        adversarial_frequency: int = 5,
         warmup_steps: int = 0,
         accumulation_steps: int = 1,
         eval_steps: int | None = None,
@@ -115,6 +116,7 @@ class Trainer:
         self.batch_size = batch_size
         self.learning_rate = learning_rate
         self.grl_lambda = grl_lambda
+        self.adversarial_frequency = adversarial_frequency
         self.warmup_steps = warmup_steps
         self.accumulation_steps = accumulation_steps
         self.eval_steps = eval_steps
@@ -213,9 +215,6 @@ class Trainer:
         total_language_loss = 0
         total_labeled = 0
         checkpoint_manager = CheckpointManager(self.save_path, self.max_num_checkpoints)
-        
-        # grl_lambda = CrossLingualToxicityTrainer.get_grl_lambda(epoch, total_epochs)
-        # model.set_grl_lambda(grl_lambda)
         progress_bar = tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{self.num_epochs} (λ={1:.3f})")
         
         optimizer.zero_grad()        
@@ -225,6 +224,12 @@ class Trainer:
             attention_mask = batch['attention_mask'].to(self.device)
             toxicity_labels = batch['toxicity_label'].to(self.device)
             language_labels = batch['language_label'].to(self.device)
+
+            # Set lambda to non zero only once every k batches
+            if (batch_idx + 1) % self.adversarial_frequency == 0:
+                model.set_grl_lambda(self.grl_lambda)
+            else:
+                model.set_grl_lambda(0)
             
             outputs = model(input_ids, attention_mask)
             losses = self.compute_loss(outputs, toxicity_labels, language_labels)
@@ -256,6 +261,9 @@ class Trainer:
                         current_f1 = val_metrics['toxicity_macro_f1']
                         print(f"Validation - Toxicity Loss: {val_metrics['toxicity_loss']}")
                         print(f"Validation - Macro F1: {current_f1:.4f}")
+                        print(f"Toxicity F1:")
+                        for lang in self.languages:
+                            print(f"  - {lang}: {val_metrics['toxicity_f1'][lang]}")
                         if current_f1 > self.best_val_f1:
                             checkpoint_manager.save_best_model(
                                 model, optimizer, scheduler, epoch, self.step_count, val_metrics
