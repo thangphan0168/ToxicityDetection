@@ -94,7 +94,7 @@ class Trainer:
         batch_size: int,
         learning_rate: float,
         grl_lambda: float = 1.0,
-        adversarial_frequency: int = 5,
+        adversarial_frequency: int = 1,
         warmup_steps: int = 0,
         accumulation_steps: int = 1,
         eval_steps: int | None = None,
