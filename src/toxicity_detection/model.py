@@ -36,7 +36,7 @@ class GradientReversalLayer(nn.Module):
 class CrossLingualToxicityDetector(nn.Module):
     def __init__(
         self,
-        model_name="gemma-3-270m",
+        model_name="google/gemma-3-270m",
         num_languages=3,
         hidden_dropout_prob=0.1,
         grl_lambda=1.0,
