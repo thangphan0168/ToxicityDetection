@@ -13,7 +13,7 @@ from transformers import AutoTokenizer, get_linear_schedule_with_warmup
 from tqdm.auto import tqdm
 
 from toxicity_detection.model import CrossLingualToxicityDetector
-from toxicity_detection.dataloader import ToxicityDataset, ToxicityDataCollator
+from toxicity_detection.dataloader import ToxicityDataset, MixedIterableToxicityDataset, ToxicityDataCollator
 
 
 class CheckpointManager:
@@ -88,11 +88,13 @@ class Trainer:
     def __init__(
         self,
         model_name: str,
-        train_dataset: datasets.Dataset,
+        train_dataset: datasets.Dataset | list[datasets.Dataset],
         val_dataset: datasets.Dataset,
         languages: list[str],
         batch_size: int,
         learning_rate: float,
+        max_steps_per_epoch: int | None = None,
+        ratios: list[float] | None = None,
         grl_lambda: float = 1.0,
         adversarial_frequency: int = 1,
         warmup_steps: int = 0,
@@ -108,11 +110,20 @@ class Trainer:
         language_weight: float = 1.0,
         resume_checkpoint: bool = False
     ):
+        if isinstance(train_dataset, list) and max_steps_per_epoch is None:
+            raise ValueError(
+                "max_steps_per_epoch must be specified when train_dataset is a list"
+            )
         self.model_name = model_name
         self.languages = languages
         self.num_languages = len(self.languages)
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
+        if ratios is None:
+            self.ratios = [1] * len(train_dataset) if isinstance(train_dataset, list) else None
+        else:
+            self.ratios = ratios
+        self.max_steps_per_epoch = max_steps_per_epoch
         self.batch_size = batch_size
         self.learning_rate = learning_rate
         self.grl_lambda = grl_lambda
@@ -209,16 +220,26 @@ class Trainer:
             'num_labeled': labeled_mask.sum().item()
         }
 
-    def train_epoch(self, model, optimizer, scheduler, train_dataloader, val_dataloader, epoch):
+    def train_epoch(self, model, optimizer, scheduler, train_dataloader, val_dataloader, epoch, max_steps):
         total_loss = 0
         total_toxicity_loss = 0
         total_language_loss = 0
         total_labeled = 0
         checkpoint_manager = CheckpointManager(self.save_path, self.max_num_checkpoints)
-        progress_bar = tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{self.num_epochs} (λ={1:.3f})")
+        try:
+            total_steps = min(len(train_dataloader), max_steps)
+        except TypeError:
+            total_steps = max_steps
+        progress_bar = tqdm(
+            train_dataloader,
+            desc=f"Epoch {epoch+1}/{self.num_epochs} (λ={1:.3f})",
+            total=total_steps
+        )
         
         optimizer.zero_grad()        
         for batch_idx, batch in enumerate(progress_bar):
+            if batch_idx >= total_steps:
+                break
             model.train() 
             input_ids = batch['input_ids'].to(self.device)
             attention_mask = batch['attention_mask'].to(self.device)
@@ -243,7 +264,7 @@ class Trainer:
             total_labeled += losses['num_labeled']
             
             is_accumulation_step = (batch_idx + 1) % self.accumulation_steps == 0
-            is_last_batch = (batch_idx + 1 == len(train_dataloader))
+            is_last_batch = (batch_idx + 1 == total_steps)
             
             if is_accumulation_step or is_last_batch:
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
@@ -283,9 +304,9 @@ class Trainer:
                 'step': self.step_count
             })
         
-        avg_loss = total_loss / len(train_dataloader)
-        avg_tox_loss = total_toxicity_loss / len(train_dataloader)
-        avg_lang_loss = total_language_loss / len(train_dataloader)
+        avg_loss = total_loss / total_steps
+        avg_tox_loss = total_toxicity_loss / total_steps
+        avg_lang_loss = total_language_loss / total_steps
         
         return avg_loss, avg_tox_loss, avg_lang_loss, total_labeled
     
@@ -298,14 +319,31 @@ class Trainer:
             grl_lambda=self.grl_lambda
         ).to(self.device)
         
-        train_dataset = ToxicityDataset(self.train_dataset, tokenizer, self.languages)
-        val_dataset = ToxicityDataset(self.val_dataset, tokenizer, self.languages)
         collator = ToxicityDataCollator(tokenizer)
-        train_loader = DataLoader(
-            train_dataset,
-            batch_size=self.batch_size,
-            shuffle=True,
-            collate_fn=collator)
+        if not isinstance(self.train_dataset, list):
+            train_dataset = ToxicityDataset(self.train_dataset, tokenizer, self.languages)
+            train_loader = DataLoader(
+                train_dataset,
+                batch_size=self.batch_size,
+                shuffle=True,
+                collate_fn=collator
+            )
+        else:
+            train_dataset = MixedIterableToxicityDataset(
+                datasets=self.train_dataset,
+                ratios=self.ratios,
+                languages=self.languages,
+                tokenizer=tokenizer,
+                batch_size=self.batch_size
+            )
+            train_loader = DataLoader(
+                train_dataset,
+                batch_size=self.batch_size,
+                shuffle=False,
+                collate_fn=collator
+            )
+        
+        val_dataset = ToxicityDataset(self.val_dataset, tokenizer, self.languages)
         val_loader = DataLoader(
             val_dataset,
             batch_size=self.batch_size,
@@ -313,7 +351,8 @@ class Trainer:
         )
         
         optimizer = torch.optim.AdamW(model.parameters(), lr=self.learning_rate)
-        total_steps = len(train_loader) * self.num_epochs
+        num_steps_per_epoch = len(train_loader) if self.max_steps_per_epoch is None else self.max_steps_per_epoch 
+        total_steps = num_steps_per_epoch * self.num_epochs
         scheduler = get_linear_schedule_with_warmup(
             optimizer,
             num_warmup_steps=self.warmup_steps,
@@ -334,7 +373,7 @@ class Trainer:
             
             # Train
             train_loss, train_tox_loss, train_lang_loss, train_labeled = self.train_epoch(
-                model, optimizer, scheduler, train_loader, val_loader, epoch
+                model, optimizer, scheduler, train_loader, val_loader, epoch, num_steps_per_epoch
             )
             print(f"\nTraining - Loss: {train_loss:.4f}, "
                 f"Toxicity Loss: {train_tox_loss:.4f}, "
