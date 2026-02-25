@@ -40,8 +40,10 @@ class ToxicityDataset(Dataset):
 
 class MixedIterableToxicityDataset(IterableDataset):
     """Iterates through multiple datasets with specified ratios per batch"""
-    def __init__(self, datasets, ratios, languages, tokenizer, batch_size, max_length=1024):
+    def __init__(self, datasets, ratios, languages, tokenizer, batch_size, max_length=1024, shuffle=True):
         self.datasets = datasets
+        if shuffle:
+            self.datasets = [dataset.shuffle() for dataset in datasets]
         self.ratios = [r / sum(ratios) for r in ratios]
         self.batch_size = batch_size
         self.tokenizer = tokenizer
