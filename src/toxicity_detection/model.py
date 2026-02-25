@@ -65,20 +65,22 @@ class CrossLingualToxicityDetector(nn.Module):
         self.hidden_size = self.base_model.config.hidden_size
         
         self.grl = GradientReversalLayer(lambda_=grl_lambda)
-        self.toxicity_head = nn.Sequential(
-            nn.Dropout(hidden_dropout_prob),
-            nn.Linear(self.hidden_size, 512),
-            nn.ReLU(),
-            nn.Dropout(hidden_dropout_prob),
-            nn.Linear(512, 2)
-        )
-        self.language_head = nn.Sequential(
-            nn.Dropout(hidden_dropout_prob),
-            nn.Linear(self.hidden_size, 512),
-            nn.ReLU(),
-            nn.Dropout(hidden_dropout_prob),
-            nn.Linear(512, num_languages)
-        )
+        # self.toxicity_head = nn.Sequential(
+        #     nn.Dropout(hidden_dropout_prob),
+        #     nn.Linear(self.hidden_size, 512),
+        #     nn.ReLU(),
+        #     nn.Dropout(hidden_dropout_prob),
+        #     nn.Linear(512, 2)
+        # )
+        # self.language_head = nn.Sequential(
+        #     nn.Dropout(hidden_dropout_prob),
+        #     nn.Linear(self.hidden_size, 512),
+        #     nn.ReLU(),
+        #     nn.Dropout(hidden_dropout_prob),
+        #     nn.Linear(512, num_languages)
+        # )
+        self.toxicity_head = nn.Linear(self.hidden_size, 2)
+        self.language_head = nn.Linear(self.hidden_size, num_languages)
         
         self.num_languages = num_languages
     
