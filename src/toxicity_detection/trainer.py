@@ -96,6 +96,7 @@ class Trainer:
         max_steps_per_epoch: int | None = None,
         ratios: list[float] | None = None,
         grl_lambda: float = 1.0,
+        dynamic_lambda: bool = False,
         adversarial_frequency: int = 1,
         warmup_steps: int = 0,
         accumulation_steps: int = 1,
@@ -127,6 +128,7 @@ class Trainer:
         self.batch_size = batch_size
         self.learning_rate = learning_rate
         self.grl_lambda = grl_lambda
+        self.dynamic_lambda = dynamic_lambda
         self.adversarial_frequency = adversarial_frequency
         self.warmup_steps = warmup_steps
         self.accumulation_steps = accumulation_steps
@@ -219,6 +221,18 @@ class Trainer:
             'language_loss': language_loss,
             'num_labeled': labeled_mask.sum().item()
         }
+    
+    def get_grl_lambda(self, gamma=10):
+        # Set non zero lambda only once every k steps
+        if (self.step_count + 1) % self.adversarial_frequency == 0:
+            if self.dynamic_lambda:
+                step_ratio = self.step_count / self.total_steps
+                grl_lambda = (2 / (1 + np.exp(-gamma * step_ratio)) - 1) * self.grl_lambda
+                return grl_lambda
+            else:
+                return self.grl_lambda
+        else:
+            return 0
 
     def train_epoch(self, model, optimizer, scheduler, train_dataloader, val_dataloader, epoch, max_steps):
         total_loss = 0
@@ -238,19 +252,15 @@ class Trainer:
         
         optimizer.zero_grad()        
         for batch_idx, batch in enumerate(progress_bar):
+            model.train()
             if batch_idx >= total_steps:
                 break
-            model.train() 
             input_ids = batch['input_ids'].to(self.device)
             attention_mask = batch['attention_mask'].to(self.device)
             toxicity_labels = batch['toxicity_label'].to(self.device)
             language_labels = batch['language_label'].to(self.device)
 
-            # Set lambda to non zero only once every k batches
-            if (batch_idx + 1) % self.adversarial_frequency == 0:
-                model.set_grl_lambda(self.grl_lambda)
-            else:
-                model.set_grl_lambda(0)
+            model.set_grl_lambda(self.get_grl_lambda())
             
             outputs = model(input_ids, attention_mask)
             losses = self.compute_loss(outputs, toxicity_labels, language_labels)
@@ -353,6 +363,7 @@ class Trainer:
         optimizer = torch.optim.AdamW(model.parameters(), lr=self.learning_rate)
         num_steps_per_epoch = len(train_loader) if self.max_steps_per_epoch is None else self.max_steps_per_epoch 
         total_steps = num_steps_per_epoch * self.num_epochs
+        self.total_steps = total_steps
         scheduler = get_linear_schedule_with_warmup(
             optimizer,
             num_warmup_steps=self.warmup_steps,
